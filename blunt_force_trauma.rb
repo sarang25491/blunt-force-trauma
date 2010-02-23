@@ -3,12 +3,13 @@
 
 class BluntForceTrauma
 
-  def initialize(app)
+  def initialize(app, options = {})
     @app = app
 
     @dirt_nap_duration = 2.hours
     @max_requests_before_blunt_force_trauma = 70
 
+    @block_bots = options[:block_bots] || false
 
     # render blank response
     @response = [403, {'Content-Type' => (options[:content_type] || 'text/html')}, [""]]
@@ -22,6 +23,10 @@ class BluntForceTrauma
   end
 
   def call(env)
+
+    # don't want to knockout the big 3 search engine bots
+    return @app.call(env) if !@block_bots && env["HTTP_USER_AGENT"] =~ /Googlebot|Yahoo|msnbot/i
+
     remote_addr = env['REMOTE_ADDR']
 
     cache_key = "ip_#{remote_addr}"
@@ -38,7 +43,7 @@ class BluntForceTrauma
         _banned_ips = Rails.cache.read("blunt_force_trauma").clone
         unless _banned_ips.include?(remote_addr)
           _banned_ips = _banned_ips + [remote_addr]
-          Rails.cache.write("blunt_force_trauma", _banned_ips)
+          Rails.cache.write("blunt_force_trauma", _banned_ips.compact)
         end
       else
         Rails.cache.write("blunt_force_trauma", [remote_addr])
